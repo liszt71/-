@@ -1,0 +1,317 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>和好吧</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one full-screen stage, three scenes that share it. Text on top, a yes pill in the middle that grows
+   toward the whole screen each time the "no" button is tapped, and a shrinking "no" button underneath.
+   Tapping yes moves to the next scene; after the last one a short closing message appears.
+   Soft pastel look, phone system font. */
+:root {
+  --paper: #fdf4ef;
+  --paper-deep: #f8e3e2;
+  --text: #5b4046;
+  --text-soft: #8a6a70;
+  --pink: #f3b4c0;
+  --peach: #f8cdb5;
+  --finale-bg: #fbe3e0;
+  --finale-text: #c4596f;
+  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --s: 0;
+  --vw: 100vw;
+  --vh: 100vh;
+  color-scheme: light;
+}
+html, body { height: 100%; }
+body {
+  background: radial-gradient(120% 80% at 50% 0%, var(--paper-deep) 0%, var(--paper) 70%) var(--paper);
+  color: var(--text);
+  font-family: var(--font);
+  padding-block: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+button:focus-visible { outline: 3px solid var(--text); outline-offset: 4px; }
+
+/* Text block */
+.intro {
+  position: fixed;
+  left: 0; right: 0; top: 0;
+  z-index: 1;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 6vh);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.intro > * { max-width: 32rem; }
+.intro.swap { animation: introIn .6s ease both; }
+@keyframes introIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.eyebrow { font-size: 13px; letter-spacing: .5em; text-indent: .5em; color: var(--text-soft); }
+.text { margin: 0; font-size: 17px; line-height: 1.8; color: var(--text); text-wrap: pretty; }
+h1 {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: .02em;
+  text-wrap: balance;
+  color: var(--text);
+}
+h1.lg { font-size: clamp(30px, 8.5vw, 52px); }
+h1.md { font-size: clamp(22px, 6vw, 32px); }
+.msg { margin: 0; min-height: 1.6em; font-size: 16px; line-height: 1.6; color: var(--text-soft); text-wrap: balance; }
+.tally { margin: 0; font-size: 13px; color: var(--text-soft); opacity: .85; font-variant-numeric: tabular-nums; }
+
+/* Yes: grows from a pill to the full viewport as --s goes 0 -> 1 */
+.yes {
+  position: fixed;
+  z-index: 3;
+  left: 50%;
+  top: calc(66% - 16% * var(--s));
+  width: calc(168px + (var(--vw) - 168px) * var(--s));
+  height: calc(64px + (var(--vh) - 64px) * var(--s));
+  transform: translate(-50%, -50%);
+  border-radius: calc(32px * (1 - var(--s)));
+  background: linear-gradient(145deg, var(--peach), var(--pink));
+  color: var(--text);
+  display: grid; place-items: center;
+  box-shadow: 0 0 0 0 rgba(243, 180, 192, .6), 0 10px 32px rgba(243, 180, 192, .45);
+  transition: width .6s cubic-bezier(.2, .9, .25, 1), height .6s cubic-bezier(.2, .9, .25, 1),
+              top .6s cubic-bezier(.2, .9, .25, 1), border-radius .6s ease;
+  animation: ring 1.8s ease-out infinite;
+}
+.yes__label {
+  font-size: min(calc(26px + 90px * var(--s)), 24vw);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: .1em;
+  text-indent: .1em;
+  white-space: nowrap;
+  animation: beat 1.8s ease-in-out infinite;
+  transition: font-size .6s cubic-bezier(.2, .9, .25, 1);
+}
+@keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(243, 180, 192, .6), 0 10px 32px rgba(243, 180, 192, .45); } 70%, 100% { box-shadow: 0 0 0 26px rgba(243, 180, 192, 0), 0 10px 32px rgba(243, 180, 192, .45); } }
+@keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+
+/* No: shrinks and fades as the yes button grows */
+.no {
+  position: fixed;
+  z-index: 2;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 7%);
+  transform: translateX(-50%) scale(calc(1 - 0.6 * var(--s)));
+  opacity: calc(1 - 0.5 * var(--s));
+  padding: 14px 28px;
+  border: 1px solid rgba(91, 64, 70, .25);
+  border-radius: 999px;
+  color: var(--text-soft);
+  font-size: 15px;
+  transition: transform .6s ease, opacity .6s ease;
+}
+.no__label { display: inline-block; }
+.no.shake .no__label { animation: shake .4s ease; }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-9px); } 40% { transform: translateX(9px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(6px); } }
+
+/* Closing message: one colour, one modest size for all three lines */
+.finale {
+  position: fixed; inset: 0;
+  z-index: 20;
+  background: var(--finale-bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px));
+  text-align: center;
+  opacity: 0;
+  transition: opacity .5s ease;
+}
+.finale.on { opacity: 1; }
+.finale p {
+  margin: 0;
+  font-size: clamp(20px, 5.5vw, 30px);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: .06em;
+  color: var(--finale-text);
+  text-wrap: balance;
+  animation: lineIn .8s cubic-bezier(.2, .9, .25, 1) both;
+}
+.f1 { animation-delay: .2s !important; }
+.f2 { animation-delay: .6s !important; }
+.f3 { animation-delay: 1.1s !important; }
+@keyframes lineIn { from { opacity: 0; transform: translateY(24px) scale(.97); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .yes, .yes__label, .no, .intro, .finale p { animation: none !important; transition: none !important; }
+}
+</style>
+
+<main id="stage">
+  <section class="intro" id="intro">
+    <span class="eyebrow" id="eyebrow"></span>
+    <p class="text" id="text"></p>
+    <h1 id="big"></h1>
+    <p class="msg" id="msg" aria-live="polite"></p>
+    <p class="tally">已拒绝 <span id="tally">0</span> 次</p>
+  </section>
+
+  <button class="yes" id="yes" type="button"><span class="yes__label" id="yesLabel"></span></button>
+  <button class="no" id="no" type="button"><span class="no__label" id="noLabel"></span></button>
+</main>
+
+<div class="finale" id="finale" hidden>
+  <p class="f1">不是要调教小狗嘛</p>
+  <p class="f2">等我回来</p>
+  <p class="f3">最爱你哦</p>
+</div>
+
+<script>
+(function () {
+  // Edit the wording of each scene here.
+  var SCENES = [
+    {
+      eyebrow: "对不起",
+      text: "",
+      big: "要跟我和好吗?",
+      size: "lg",
+      msg: "汪汪",
+      yes: "和好",
+      no: "不和好",
+      lines: [
+        "嘎嘎 真的嘛",
+        "呜呜对不起嘛",
+        "和好嘛 汪汪",
+        "被嫌弃了呜呜",
+        "汪汪 原谅小狗嘛",
+        "主人小狗求你了",
+      ]
+    },
+    {
+      eyebrow: "",
+      text: "今天我有点暴躁,对不起哦。其实只是希望你可以记得我讲的东西,哄我几句。我明白你做工很忙,很累的,抱抱哦。下次我们好好沟通可以吗?",
+      big: "还有一个小要求,要听吗?",
+      size: "md",
+      msg: "",
+      yes: "要",
+      no: "不要",
+      lines: [
+        "欸 听一下嘛",
+        "听一下嘛 汪汪",
+        "呜呜 就一个小要求",
+        "听嘛 小狗的小要求~",
+        "被主人抛弃了..",
+        "要已经比你的手指还大了。"
+      ]
+    },
+    {
+      eyebrow: "",
+      text: "",
+      big: "下次能不能不要讲你要去找别人了呜呜,我听到这个真的很伤心,好吗?",
+      size: "md",
+      msg: "",
+      yes: "拉勾勾",
+      no: "不要",
+      lines: [
+        "哼",
+        "拉勾勾嘛 汪汪",
+        "不拉吗 讨厌",
+        "不要就不要嘛 哼",
+        "拉勾勾",
+        "拉勾勾已经比你的手指还大了。"
+      ]
+    }
+  ];
+  var STEP = 0.15;       // how much the yes button grows per tap on the no button
+  var AUTO_CAP = 0.45;   // how far it grows by itself while you hesitate
+
+  var root = document.documentElement;
+  var $ = function (id) { return document.getElementById(id); };
+  var yes = $("yes"), no = $("no"), msg = $("msg"), tally = $("tally"), stage = $("stage"), finale = $("finale");
+  var intro = $("intro"), eyebrow = $("eyebrow"), text = $("text"), big = $("big");
+  var yesLabel = $("yesLabel"), noLabel = $("noLabel");
+  var index = 0, refused = 0, auto = 0, done = false, lockUntil = 0;
+
+  function setSize() {
+    root.style.setProperty("--vw", window.innerWidth + "px");
+    root.style.setProperty("--vh", window.innerHeight + "px");
+  }
+  function grow() {
+    var s = Math.max(auto, Math.min(1, refused * STEP));
+    root.style.setProperty("--s", s.toFixed(3));
+  }
+  function render(first) {
+    var sc = SCENES[index];
+    eyebrow.textContent = sc.eyebrow; eyebrow.hidden = !sc.eyebrow;
+    text.textContent = sc.text; text.hidden = !sc.text;
+    big.textContent = sc.big; big.className = sc.size;
+    msg.textContent = sc.msg;
+    yesLabel.textContent = sc.yes;
+    noLabel.textContent = sc.no;
+    refused = 0; auto = 0; tally.textContent = "0";
+    grow();
+    if (!first) {
+      intro.classList.remove("swap");
+      void intro.offsetWidth;
+      intro.classList.add("swap");
+    }
+  }
+  setSize();
+  window.addEventListener("resize", setSize);
+  render(true);
+
+  // Best-effort "no way out": warn on close and swallow the back button until the last scene is done.
+  function onBeforeUnload(e) { e.preventDefault(); e.returnValue = ""; return ""; }
+  function pushTrap() { try { history.pushState({ stay: 1 }, "", location.href); } catch (err) {} }
+  function onPop() {
+    pushTrap();
+    msg.textContent = "想走?先点「" + SCENES[index].yes + "」。";
+  }
+  function onKey(e) { if (e.key === "Escape" || e.key === "Backspace") e.preventDefault(); }
+  window.addEventListener("beforeunload", onBeforeUnload);
+  window.addEventListener("popstate", onPop);
+  window.addEventListener("keydown", onKey);
+  pushTrap();
+
+  var autoTimer = setInterval(function () {
+    if (done) return;
+    auto = Math.min(AUTO_CAP, auto + 0.012);
+    grow();
+  }, 1000);
+
+  no.addEventListener("click", function () {
+    if (done || Date.now() < lockUntil) return;
+    refused += 1;
+    tally.textContent = refused;
+    var lines = SCENES[index].lines;
+    msg.textContent = lines[Math.min(refused - 1, lines.length - 1)];
+    no.classList.remove("shake");
+    void no.offsetWidth;
+    no.classList.add("shake");
+    try { if (navigator.vibrate) navigator.vibrate(30); } catch (err) {}
+    grow();
+  });
+
+  yes.addEventListener("click", function () {
+    if (done || Date.now() < lockUntil) return;
+    lockUntil = Date.now() + 900;   // ignore a double tap on the freshly shrinking button
+    if (index < SCENES.length - 1) {
+      index += 1;
+      render(false);
+      return;
+    }
+    done = true;
+    clearInterval(autoTimer);
+    window.removeEventListener("beforeunload", onBeforeUnload);
+    window.removeEventListener("popstate", onPop);
+    window.removeEventListener("keydown", onKey);
+    finale.hidden = false;
+    setTimeout(function () { finale.classList.add("on"); stage.hidden = true; }, 30);
+  });
+})();
+</script>
+
+</body></html>
